@@ -1,0 +1,48 @@
+plugins {
+    id 'org.jetbrains.kotlin.jvm' version '1.3.41'
+    id 'application'
+}
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+group 'io.code.morning'
+version '1.0-SNAPSHOT'
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+    // CDK
+    implementation 'software.amazon.awscdk:core:1.15.0.DEVPREVIEW'
+    implementation 'software.amazon.awscdk:iam:1.15.0.DEVPREVIEW'
+    implementation 'software.amazon.awscdk:ecs:1.15.0.DEVPREVIEW'
+    implementation 'software.amazon.awscdk:ecr:1.15.0.DEVPREVIEW'
+    implementation 'software.amazon.awscdk:ec2:1.15.0.DEVPREVIEW'
+    // Testing
+    testImplementation("org.jetbrains.kotlin:kotlin-test")
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit")
+}
+
+compileKotlin {
+    kotlinOptions.jvmTarget = "1.8"
+}
+compileTestKotlin {
+    kotlinOptions.jvmTarget = "1.8"
+}
+
+application {
+    mainClassName = "io.code.morning.ApiAppCdkKt"
+}
+
+task buildZip(type: Zip) {
+    from compileKotlin
+    from processResources
+    into('lib') {
+        from configurations.compileClasspath
+    }
+}
+
+build.dependsOn buildZip
