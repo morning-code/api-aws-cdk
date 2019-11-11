@@ -7,6 +7,8 @@ import software.amazon.awscdk.services.ec2.Vpc
 import software.amazon.awscdk.services.ec2.VpcProps
 import software.amazon.awscdk.services.ecr.Repository
 import software.amazon.awscdk.services.ecs.*
+import software.amazon.awscdk.services.ecs.patterns.ApplicationLoadBalancedFargateService;
+import software.amazon.awscdk.services.ecs.patterns.ApplicationLoadBalancedFargateServiceProps;
 
 class ApiStack @JvmOverloads constructor(app: App, id: String, props: StackProps? = null) :
   Stack(app, id, props) {
@@ -33,19 +35,29 @@ class ApiStack @JvmOverloads constructor(app: App, id: String, props: StackProps
     val taskDefinition =
       FargateTaskDefinition(
         this, "morning-code-api-fargate-task-definition",
-        FargateTaskDefinitionProps.builder().build()
+        FargateTaskDefinitionProps.builder()
+          .cpu(256)
+          .memoryLimitMiB(512)
+          .build()
       )
-        .addContainer(
-          "morning-code-api-container",
-          ContainerDefinitionOptions.builder().image(ContainerImage.fromEcrRepository(ecr)).build()
-        ).taskDefinition
+
+    // Container settings
+    val appContainer = taskDefinition.addContainer(
+      "morning-code-api-container",
+      ContainerDefinitionOptions.builder()
+        .image(ContainerImage.fromEcrRepository(ecr)).build()
+    )
+    appContainer.addPortMappings(PortMapping.builder().containerPort(80).build())
 
     // Fargate
-    FargateService(
-      this, "morning-code-api-fargate", FargateServiceProps.builder()
+    ApplicationLoadBalancedFargateService(
+      this,
+      "morning-code-api-fargate",
+      ApplicationLoadBalancedFargateServiceProps.builder()
         .cluster(ecsCluster)
         .desiredCount(1)
         .taskDefinition(taskDefinition)
+        .publicLoadBalancer(true)
         .build()
     )
   }
