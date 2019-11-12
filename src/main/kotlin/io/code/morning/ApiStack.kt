@@ -6,6 +6,7 @@ import software.amazon.awscdk.core.StackProps
 import software.amazon.awscdk.services.ec2.Vpc
 import software.amazon.awscdk.services.ec2.VpcProps
 import software.amazon.awscdk.services.ecr.Repository
+import software.amazon.awscdk.services.ecr.RepositoryProps
 import software.amazon.awscdk.services.ecs.*
 import software.amazon.awscdk.services.ecs.patterns.ApplicationLoadBalancedFargateService;
 import software.amazon.awscdk.services.ecs.patterns.ApplicationLoadBalancedFargateServiceProps;
@@ -29,7 +30,10 @@ class ApiStack @JvmOverloads constructor(app: App, id: String, props: StackProps
     )
 
     // ECR
-    val ecr = Repository(this, "morning-code-api")
+    val ecr = Repository(
+      this, "morning-code-api-ecr", RepositoryProps.builder()
+        .repositoryName("morning-code-api-ecr-repository").build()
+    )
 
     // TaskDefinition
     val taskDefinition =
@@ -37,17 +41,26 @@ class ApiStack @JvmOverloads constructor(app: App, id: String, props: StackProps
         this, "morning-code-api-fargate-task-definition",
         FargateTaskDefinitionProps.builder()
           .cpu(256)
-          .memoryLimitMiB(512)
+          .memoryLimitMiB(1024)
           .build()
       )
+
+    // ECS Log setting
+    val awsLogDriver = AwsLogDriver(
+      AwsLogDriverProps.builder()
+        .streamPrefix("morning-code-api")
+        .build()
+    )
 
     // Container settings
     val appContainer = taskDefinition.addContainer(
       "morning-code-api-container",
       ContainerDefinitionOptions.builder()
-        .image(ContainerImage.fromEcrRepository(ecr)).build()
+        .image(ContainerImage.fromEcrRepository(ecr))
+        .logging(awsLogDriver)
+        .build()
     )
-    appContainer.addPortMappings(PortMapping.builder().containerPort(80).build())
+    appContainer.addPortMappings(PortMapping.builder().containerPort(8080).build())
 
     // Fargate
     ApplicationLoadBalancedFargateService(
