@@ -1,18 +1,18 @@
 package io.code.morning
 
 import software.amazon.awscdk.core.App
+import software.amazon.awscdk.core.Duration
 import software.amazon.awscdk.core.Stack
 import software.amazon.awscdk.core.StackProps
-import software.amazon.awscdk.services.ec2.Instance
 import software.amazon.awscdk.services.ec2.Vpc
 import software.amazon.awscdk.services.ec2.VpcProps
 import software.amazon.awscdk.services.ecr.IRepository
 import software.amazon.awscdk.services.ecr.Repository
-import software.amazon.awscdk.services.ecr.RepositoryProps
 import software.amazon.awscdk.services.ecs.*
 import software.amazon.awscdk.services.ecs.patterns.ApplicationLoadBalancedFargateService
 import software.amazon.awscdk.services.ecs.patterns.ApplicationLoadBalancedFargateServiceProps
 import software.amazon.awscdk.services.servicediscovery.*
+import software.amazon.awscdk.services.iam.ManagedPolicy
 
 class ApiStack @JvmOverloads constructor(app: App, id: String, props: StackProps? = null) :
   Stack(app, id, props) {
@@ -65,9 +65,9 @@ class ApiStack @JvmOverloads constructor(app: App, id: String, props: StackProps
     appContainer.addPortMappings(PortMapping.builder().containerPort(8080).build())
 
     // Fargate
-    ApplicationLoadBalancedFargateService(
+    val fargateService = ApplicationLoadBalancedFargateService(
       this,
-      "morning-code-api-fargate",
+      "FargateService",
       ApplicationLoadBalancedFargateServiceProps.builder()
         .cluster(ecsCluster)
         .desiredCount(1)
@@ -76,28 +76,48 @@ class ApiStack @JvmOverloads constructor(app: App, id: String, props: StackProps
         .build()
     )
 
-    // Cloud Map
-    /*
-    val namespace = HttpNamespace(
-      this,
-      "morning-code-api-ns",
-      HttpNamespaceProps.builder()
-        .name("api.morning.code.io")
+    // X-Ray
+    val xray = fargateService.taskDefinition.addContainer(
+      "x-ray-daemon",
+      ContainerDefinitionOptions.builder()
+        .image(ContainerImage.fromRegistry("amazon/aws-xray-daemon"))
+        .entryPoint(mutableListOf("/usr/bin/xray", "-b", "0.0.0.0:2000", "-o"))
+        .memoryReservationMiB(256)
+        .logging(AwsLogDriver(AwsLogDriverProps.builder().streamPrefix("x-ray").build()))
+        .essential(true)
+        .build()
+    )
+    xray.taskDefinition.taskRole.addManagedPolicy(
+      ManagedPolicy.fromAwsManagedPolicyName("AWSXRayDaemonWriteAccess")
+    )
+    xray.addPortMappings(
+      PortMapping.builder()
+        .hostPort(2000)
+        .containerPort(2000)
+        .protocol(Protocol.UDP)
         .build()
     )
 
-     */
-
-    /*
-    val service = Service(
+    // Cloud Map
+    val namespace = PrivateDnsNamespace(
       this,
-      "morning-code",
+      "NameSpace",
+      PrivateDnsNamespaceProps.builder()
+        .name("api.morningcode.io")
+        .vpc(vpc)
+        .build()
+    )
+
+    val service = namespace.createService(
+      "Service",
       ServiceProps.builder()
         .namespace(namespace)
+        .dnsRecordType(DnsRecordType.A_AAAA)
+        .dnsTtl(Duration.seconds(30))
+        .loadBalancer(true)
         .build()
     )
-     */
 
-    //val instance = Instance
+    service.registerLoadBalancer("LoadBalancer", fargateService.loadBalancer)
   }
 }
