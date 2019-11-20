@@ -6,6 +6,7 @@ import software.amazon.awscdk.core.StackProps
 import software.amazon.awscdk.services.ec2.Instance
 import software.amazon.awscdk.services.ec2.Vpc
 import software.amazon.awscdk.services.ec2.VpcProps
+import software.amazon.awscdk.services.ecr.IRepository
 import software.amazon.awscdk.services.ecr.Repository
 import software.amazon.awscdk.services.ecr.RepositoryProps
 import software.amazon.awscdk.services.ecs.*
@@ -32,16 +33,9 @@ class ApiStack @JvmOverloads constructor(app: App, id: String, props: StackProps
     )
 
     // ECR
-    // val ecr = Repository.fromRepositoryName(this, "morning-code-api-ecr", "morning-code-api")
-    /*
-    val ecr = Repository(
-      this, "morning-code-api-ecr", RepositoryProps.builder()
-        .repositoryName("morning-code-api-ecr-repository").build()
-    )
-     */
-    //val containerImage = EcrImage.fromRegistry("morning-code-api")
-    val ecrImageUri = this.node.tryGetContext("ecrImageUri").toString()
-    val containerImage = EcrImage.fromRegistry(ecrImageUri)
+    val ecrArn: String = this.node.tryGetContext("ecrArn").toString()
+    val repository: IRepository = Repository.fromRepositoryArn(this, "morning-code-api-ecr", ecrArn)
+    val containerImage = EcrImage.fromEcrRepository(repository, "latest")
 
     // TaskDefinition
     val taskDefinition =
@@ -65,7 +59,6 @@ class ApiStack @JvmOverloads constructor(app: App, id: String, props: StackProps
       "morning-code-api-container",
       ContainerDefinitionOptions.builder()
         .image(containerImage)
-//        .image(ContainerImage.fromEcrRepository(ecr))
         .logging(awsLogDriver)
         .build()
     )
