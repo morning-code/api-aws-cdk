@@ -48,7 +48,7 @@ class ApiStack @JvmOverloads constructor(app: App, id: String, props: StackProps
       )
 
     // ECS Log setting
-    val awsLogDriver = AwsLogDriver(
+    val awsLogDriver: LogDriver = AwsLogDriver(
       AwsLogDriverProps.builder()
         .streamPrefix("morning-code-api")
         .build()
@@ -64,26 +64,14 @@ class ApiStack @JvmOverloads constructor(app: App, id: String, props: StackProps
     )
     appContainer.addPortMappings(PortMapping.builder().containerPort(8080).build())
 
-    // Fargate
-    val fargateService = ApplicationLoadBalancedFargateService(
-      this,
-      "FargateService",
-      ApplicationLoadBalancedFargateServiceProps.builder()
-        .cluster(ecsCluster)
-        .desiredCount(1)
-        .taskDefinition(taskDefinition)
-        .publicLoadBalancer(true)
-        .build()
-    )
-
     // X-Ray
-    val xray = fargateService.taskDefinition.addContainer(
+    val xray = taskDefinition.addContainer(
       "x-ray-daemon",
       ContainerDefinitionOptions.builder()
         .image(ContainerImage.fromRegistry("amazon/aws-xray-daemon"))
         .entryPoint(mutableListOf("/usr/bin/xray", "-b", "0.0.0.0:2000", "-o"))
         .memoryReservationMiB(256)
-        .logging(AwsLogDriver(AwsLogDriverProps.builder().streamPrefix("x-ray").build()))
+        .logging(AwsLogDriver(AwsLogDriverProps.builder().streamPrefix("api-x-ray").build()))
         .essential(true)
         .build()
     )
@@ -95,6 +83,18 @@ class ApiStack @JvmOverloads constructor(app: App, id: String, props: StackProps
         .hostPort(2000)
         .containerPort(2000)
         .protocol(Protocol.UDP)
+        .build()
+    )
+
+    // Fargate
+    val fargateService = ApplicationLoadBalancedFargateService(
+      this,
+      "FargateService",
+      ApplicationLoadBalancedFargateServiceProps.builder()
+        .cluster(ecsCluster)
+        .desiredCount(1)
+        .taskDefinition(taskDefinition)
+        .publicLoadBalancer(true)
         .build()
     )
 
