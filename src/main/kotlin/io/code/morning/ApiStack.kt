@@ -21,6 +21,7 @@ class ApiStack @JvmOverloads constructor(app: App, id: String, props: StackProps
     // VPC
     val vpc = Vpc(
       this, "morning-code-api-vpc", VpcProps.builder()
+        .maxAzs(2)
         .cidr("10.0.0.0/16")
         .build()
     )
@@ -28,6 +29,7 @@ class ApiStack @JvmOverloads constructor(app: App, id: String, props: StackProps
     // ECS Cluster
     val ecsCluster = Cluster(
       this, "morning-code-api-cluster", ClusterProps.builder()
+        .clusterName("morning-code-api-cluster")
         .vpc(vpc)
         .build()
     )
@@ -94,6 +96,7 @@ class ApiStack @JvmOverloads constructor(app: App, id: String, props: StackProps
         .cluster(ecsCluster)
         .desiredCount(1)
         .taskDefinition(taskDefinition)
+        // TODO: to be set false
         .publicLoadBalancer(true)
         .build()
     )
